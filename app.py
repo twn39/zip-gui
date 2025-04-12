@@ -79,14 +79,10 @@ class UnpackWorker(QThread):
     def run(self):
         try:
             self.progress.emit(10)
-            print(
-                f"开始解压: archive='{self.archive_file}', extract_dir='{self.extract_dir}'"
-            )
+            print(f"开始解压: archive='{self.archive_file}', extract_dir='{self.extract_dir}'")
 
-            # 确保目标目录存在
             os.makedirs(self.extract_dir, exist_ok=True)
 
-            # 执行解压, shutil 会尝试自动识别格式
             shutil.unpack_archive(self.archive_file, self.extract_dir)
 
             self.progress.emit(100)
@@ -170,7 +166,6 @@ class PackApp(QWidget):
             "fa5s.folder-plus", color=icon_color, color_active=icon_color_active
         )
 
-        # 打包: 源文件夹
         self.source_label = QLabel("源文件夹:")
         self.source_edit = QLineEdit()
         self.source_edit.setPlaceholderText("选择要打包的文件夹")
@@ -184,11 +179,8 @@ class PackApp(QWidget):
 
         self.format_label = QLabel("压缩类型:")
         self.format_combo = QComboBox()
-        try:
-            supported_formats = [fmt[0] for fmt in shutil.get_archive_formats()]
-            self.format_combo.addItems(supported_formats)
-        except Exception:
-            self.format_combo.addItems(["zip", "tar", "gztar", "bztar", "xztar"])
+        supported_formats = [fmt[0] for fmt in shutil.get_archive_formats()]
+        self.format_combo.addItems(supported_formats)
         pack_layout.addWidget(self.format_label, 1, 0)
         pack_layout.addWidget(self.format_combo, 1, 1)
 
