@@ -6,24 +6,34 @@ from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
-    QGridLayout,  # 添加 QGridLayout
+    QGridLayout,
     QLabel,
     QLineEdit,
     QPushButton,
     QComboBox,
-    QRadioButton,  # 添加 QRadioButton
+    QRadioButton,
     QProgressBar,
     QFileDialog,
     QMessageBox,
     QGroupBox,
-    QFrame,  # 添加 QGroupBox, QFrame
+    QFrame,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QSize
 from PySide6.QtGui import QIcon
 import qtawesome as qta
 
 
-# --- 打包后台工作线程 (与之前相同) ---
+def load_stylesheet(filename="theme.qss"):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    filepath = os.path.join(script_dir, filename)
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        print(f"加载样式文件时出错: {e}")
+        return None
+
+
 class PackWorker(QThread):
     finished = Signal(str)
     error = Signal(str)
@@ -47,7 +57,6 @@ class PackWorker(QThread):
                 format=self.archive_format,
                 root_dir=self.root_dir,
             )
-            # time.sleep(1) # 模拟耗时
             self.progress.emit(100)
             self.finished.emit(f"成功打包到: {archive_path}")
         except Exception as e:
@@ -57,7 +66,6 @@ class PackWorker(QThread):
             pass
 
 
-# --- 解压后台工作线程 ---
 class UnpackWorker(QThread):
     finished = Signal(str)
     error = Signal(str)
@@ -81,12 +89,10 @@ class UnpackWorker(QThread):
             # 执行解压, shutil 会尝试自动识别格式
             shutil.unpack_archive(self.archive_file, self.extract_dir)
 
-            # time.sleep(1) # 模拟耗时
             self.progress.emit(100)
             self.finished.emit(f"成功解压到: {self.extract_dir}")
         except Exception as e:
             print(f"解压出错: {e}")
-            # 提供更具体的错误信息
             error_msg = f"解压失败: {str(e)}"
             if isinstance(e, shutil.ReadError):
                 error_msg = f"解压失败: 文件 '{os.path.basename(self.archive_file)}' 可能不是受支持的压缩格式或已损坏。"
@@ -100,7 +106,6 @@ class UnpackWorker(QThread):
             pass
 
 
-# --- 主窗口类 ---
 class PackApp(QWidget):
     MODE_PACK = 0
     MODE_UNPACK = 1
@@ -112,7 +117,7 @@ class PackApp(QWidget):
         self.initUI()
 
     def initUI(self):
-        self.setWindowTitle("简易打包解压工具 (黑色磨砂主题)")
+        self.setWindowTitle("简易打包解压工具")
         self.setGeometry(300, 300, 650, 380)  # 调整窗口大小
 
         # --- 主布局 ---
@@ -146,36 +151,24 @@ class PackApp(QWidget):
         icon_size = QSize(20, 20)
         icon_color = "#A9A9A9"
         icon_color_active = "#E0E0E0"
-        try:
-            folder_icon = qta.icon(
-                "fa5s.folder-open", color=icon_color, color_active=icon_color_active
-            )
-            save_icon = qta.icon(
-                "fa5s.save", color=icon_color, color_active=icon_color_active
-            )
-            pack_icon = qta.icon(
-                "fa5s.compress-alt", color=icon_color, color_active=icon_color_active
-            )
-            unpack_icon = qta.icon(
-                "fa5s.expand-alt", color=icon_color, color_active=icon_color_active
-            )  # 解压图标
-            archive_icon = qta.icon(
-                "fa5s.file-archive", color=icon_color, color_active=icon_color_active
-            )  # 压缩文件图标
-            extract_folder_icon = qta.icon(
-                "fa5s.folder-plus", color=icon_color, color_active=icon_color_active
-            )  # 目标文件夹图标
-
-        except Exception as e:
-            print(f"警告: 加载 qtawesome 图标时出错: {e}. 图标可能无法显示。")
-            (
-                folder_icon,
-                save_icon,
-                pack_icon,
-                unpack_icon,
-                archive_icon,
-                extract_folder_icon,
-            ) = (QIcon(),) * 6
+        folder_icon = qta.icon(
+            "fa5s.folder-open", color=icon_color, color_active=icon_color_active
+        )
+        save_icon = qta.icon(
+            "fa5s.save", color=icon_color, color_active=icon_color_active
+        )
+        pack_icon = qta.icon(
+            "fa5s.compress-alt", color=icon_color, color_active=icon_color_active
+        )
+        unpack_icon = qta.icon(
+            "fa5s.expand-alt", color=icon_color, color_active=icon_color_active
+        )  # 解压图标
+        archive_icon = qta.icon(
+            "fa5s.file-archive", color=icon_color, color_active=icon_color_active
+        )  # 压缩文件图标
+        extract_folder_icon = qta.icon(
+            "fa5s.folder-plus", color=icon_color, color_active=icon_color_active
+        )
 
         # 打包: 源文件夹
         self.source_label = QLabel("源文件夹:")
@@ -189,7 +182,6 @@ class PackApp(QWidget):
         pack_layout.addWidget(self.source_edit, 0, 1)
         pack_layout.addWidget(self.source_button, 0, 2)
 
-        # 打包: 压缩类型
         self.format_label = QLabel("压缩类型:")
         self.format_combo = QComboBox()
         try:
@@ -198,7 +190,7 @@ class PackApp(QWidget):
         except Exception:
             self.format_combo.addItems(["zip", "tar", "gztar", "bztar", "xztar"])
         pack_layout.addWidget(self.format_label, 1, 0)
-        pack_layout.addWidget(self.format_combo, 1, 1)  # 占据一列
+        pack_layout.addWidget(self.format_combo, 1, 1)
 
         # 打包: 保存路径
         self.dest_label = QLabel("保存路径:")
@@ -351,7 +343,6 @@ class PackApp(QWidget):
         self.progress_bar.setStyleSheet("")  # 清除进度条样式
         self.status_label.setStyleSheet("color: #A9A9A9;")  # 恢复默认颜色
 
-    # --- 文件/文件夹选择槽函数 ---
     def select_source_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "选择源文件夹")
         if folder:
@@ -402,12 +393,11 @@ class PackApp(QWidget):
             self.status_label.setText("已选择目标文件夹")
             self.status_label.setStyleSheet("color: #A9A9A9;")
 
-    # --- 启动操作槽函数 ---
     def start_action(self):
         """根据当前模式启动打包或解压"""
         self.action_button.setEnabled(False)
         self.progress_bar.setValue(0)
-        self.progress_bar.setStyleSheet("")  # 清除可能存在的错误样式
+        self.progress_bar.setStyleSheet("")
 
         if self.current_mode == self.MODE_PACK:
             self.start_packaging()
@@ -487,14 +477,17 @@ class PackApp(QWidget):
             return
 
         # 可以在这里检查目标文件夹是否已存在且非空，并提示用户
-        # if os.path.isdir(extract_dir) and os.listdir(extract_dir):
-        #     reply = QMessageBox.question(self, '确认',
-        #                                  f"目标文件夹 '{extract_dir}' 已存在且非空，是否覆盖?",
-        #                                  QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        #                                  QMessageBox.StandardButton.No)
-        #     if reply == QMessageBox.StandardButton.No:
-        #         self.action_button.setEnabled(True)
-        #         return
+        if os.path.isdir(extract_dir) and os.listdir(extract_dir):
+            reply = QMessageBox.question(
+                self,
+                "确认",
+                f"目标文件夹 '{extract_dir}' 已存在且非空，是否覆盖?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.No:
+                self.action_button.setEnabled(True)
+                return
 
         self.status_label.setText(f"正在解压 {os.path.basename(archive_file)}...")
         self.status_label.setStyleSheet("color: #FFD700;")  # 黄色
@@ -534,210 +527,11 @@ class PackApp(QWidget):
         self.worker = None
 
 
-# --- QSS 样式表 (需要更新 ActionButton 的样式) ---
-dark_matte_style = """
-QWidget {
-    background-color: #2E2E2E;
-    color: #E0E0E0;
-    font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
-    font-size: 12pt;
-}
-
-QGroupBox {
-    border: 1px solid #444444;
-    border-radius: 5px;
-    margin-top: 1ex; /* leave space at the top for the title */
-    font-weight: bold;
-    color: #C0C0C0;
-}
-
-QGroupBox::title {
-    subcontrol-origin: margin;
-    subcontrol-position: top left; /* position at the top center */
-    padding: 0 5px;
-    background-color: #2E2E2E; /* Match background */
-    left: 10px; /* Adjust horizontal position */
-}
-
-
-QLabel {
-    color: #C0C0C0;
-    padding: 2px;
-}
-
-QLineEdit {
-    background-color: #3C3C3C;
-    border: 1px solid #555555;
-    border-radius: 4px;
-    padding: 6px;
-    color: #E0E0E0;
-    min-height: 22px;
-}
-
-QLineEdit:focus {
-    border: 1px solid #77AADD;
-}
-
-QComboBox {
-    background-color: #3C3C3C;
-    border: 1px solid #555555;
-    border-radius: 4px;
-    padding: 6px 10px 6px 6px;
-    min-width: 6em;
-    color: #E0E0E0;
-    min-height: 22px;
-}
-
-QComboBox::drop-down {
-    subcontrol-origin: padding;
-    subcontrol-position: top right;
-    width: 20px;
-    border-left-width: 1px;
-    border-left-color: #555555;
-    border-left-style: solid;
-    border-top-right-radius: 3px;
-    border-bottom-right-radius: 3px;
-    background-color: #424242;
-}
-
-QComboBox::down-arrow {
-     image: url(:/qt-project.org/styles/commonstyle/images/downarraow-16.png);
-     width: 10px;
-     height: 10px;
-}
-QComboBox QAbstractItemView {
-    background-color: #3C3C3C;
-    border: 1px solid #555555;
-    selection-background-color: #50A0D0;
-    selection-color: #FFFFFF;
-    color: #E0E0E0;
-    padding: 4px;
-}
-
-QPushButton {
-    background-color: #4A4A4A;
-    border: 1px solid #606060;
-    border-radius: 4px;
-    padding: 6px 12px;
-    color: #E0E0E0;
-    min-width: 30px;
-    min-height: 22px;
-}
-
-QPushButton:hover {
-    background-color: #5A5A5A;
-    border-color: #777777;
-}
-
-QPushButton:pressed {
-    background-color: #6A6A6A;
-}
-
-QPushButton:disabled {
-    background-color: #404040;
-    color: #808080;
-    border-color: #505050;
-}
-
-/* === 主操作按钮样式 (ActionButton) === */
-/* 默认是打包按钮的绿色 */
-QPushButton#ActionButton {
-    font-weight: bold;
-    background-color: #4CAF50; /* 主要绿色 */
-    color: #FFFFFF; /* 白色文字 */
-    min-width: 100px; /* 稍宽一点 */
-}
-QPushButton#ActionButton:hover {
-    background-color: #66BB6A;
-    color: #FFFFFF;
-}
-QPushButton#ActionButton:pressed {
-    background-color: #388E3C;
-    color: #FFFFFF;
-}
-QPushButton#ActionButton:disabled {
-    background-color: #A5D6A7;
-    color: #616161;
-    border-color: #81C784;
-}
-/* 如果需要在解压模式下改变按钮颜色，可以在 switch_mode 中用 setStyleSheet 实现 */
-
-
-QProgressBar {
-    border: 1px solid #555555;
-    border-radius: 5px;
-    text-align: center;
-    background-color: #3C3C3C;
-    color: #E0E0E0;
-    min-height: 20px;
-}
-
-QProgressBar::chunk {
-    background-color: #50A0D0; /* 默认蓝色进度 */
-    border-radius: 5px;
-}
-
-QLabel#StatusLabel {
-    color: #A9A9A9;
-    font-size: 10pt;
-    padding: 5px;
-}
-
-QRadioButton {
-    color: #C0C0C0;
-    padding: 3px;
-}
-QRadioButton::indicator {
-    width: 14px;
-    height: 14px;
-    border: 1px solid #555555;
-    border-radius: 7px; /* 圆形 */
-    background-color: #3C3C3C;
-}
-QRadioButton::indicator:checked {
-    background-color: #50A0D0; /* 选中时的颜色 */
-    border: 1px solid #77AADD;
-    /* 可以添加一个内部小圆点 */
-    image: url(:/qt-project.org/styles/commonstyle/images/radiobutton-checked-16.png); /* 尝试使用内置图标 */
-}
-QRadioButton::indicator:unchecked:hover {
-    border: 1px solid #77AADD;
-}
-QRadioButton:disabled {
-    color: #808080;
-}
-QRadioButton::indicator:disabled {
-    border: 1px solid #404040;
-    background-color: #404040;
-}
-
-
-QMessageBox { background-color: #333333; }
-QMessageBox QLabel { color: #E0E0E0; font-size: 11pt; }
-QMessageBox QPushButton {
-    background-color: #4A4A4A; border: 1px solid #606060; border-radius: 4px;
-    padding: 6px 12px; color: #E0E0E0; min-width: 70px; min-height: 22px;
-}
-QMessageBox QPushButton:hover { background-color: #5A5A5A; }
-QMessageBox QPushButton:pressed { background-color: #6A6A6A; }
-
-QToolTip {
-    background-color: #424242; color: #E0E0E0; border: 1px solid #606060;
-    padding: 4px; border-radius: 3px; opacity: 230; font-size: 10pt;
-}
-
-QFrame[frameShape="5"] { /* HLine specific style */
-    border: none;
-    border-top: 1px solid #444444; /* Line color */
-    margin: 5px 0px; /* Add some vertical margin */
-}
-
-"""
-
-# --- 程序入口 ---
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setStyleSheet(dark_matte_style)  # 应用样式
+    style_sheet = load_stylesheet("theme.qss")
+    if style_sheet:
+        app.setStyleSheet(style_sheet)
     ex = PackApp()
     ex.show()
     sys.exit(app.exec())
