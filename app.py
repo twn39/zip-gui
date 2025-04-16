@@ -22,10 +22,29 @@ from PySide6.QtCore import Qt, QThread, Signal, QSize
 from PySide6.QtGui import QIcon
 import qtawesome as qta
 
+def resource_path(relative_path):
+    """ 获取资源的绝对路径，适用于开发环境和 PyInstaller 打包环境 """
+    try:
+        # PyInstaller 创建一个临时文件夹并将路径存储在 _MEIPASS 中
+        # getattr(sys, 'frozen', False) 检查是否是打包后的程序
+        # hasattr(sys, '_MEIPASS') 检查是否是单文件模式
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            base_path = sys._MEIPASS
+        else:
+            # 在开发环境或非单文件模式下，使用脚本所在的目录
+            # 或者使用 os.path.abspath(".") 如果 spec 文件和脚本在同一级
+            base_path = os.path.dirname(os.path.abspath(__file__))
+            # 如果 spec 文件在上一级，可能需要调整 base_path 的获取方式
+            # base_path = os.path.abspath(".")
+
+    except Exception:
+        # 备选方案，通常是开发环境
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 def load_stylesheet(filename="theme.qss"):
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    filepath = os.path.join(script_dir, filename)
+    filepath = resource_path(filename)
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             return f.read()

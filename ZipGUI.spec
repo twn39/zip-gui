@@ -1,11 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+block_cipher = None
 
 a = Analysis(
     ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('theme.qss', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -19,7 +20,6 @@ a = Analysis(
         'curses',
         'xmlrpc',
         'pydoc',
-        'distutils', 'setuptools',
         'PySide6.QtTest',
         'PySide6.QtNetwork',
         'PySide6.QtSql',
@@ -33,6 +33,9 @@ a = Analysis(
         'PySide6.QtHelp',
         'PySide6.QtUiTools',
     ],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
     noarchive=False,
     optimize=0,
 )
