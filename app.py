@@ -22,6 +22,7 @@ from PySide6.QtCore import Qt, QThread, Signal, QSize
 from PySide6.QtGui import QIcon
 import qtawesome as qta
 from style import load_stylesheet
+from PySide6.QtWidgets import QStackedWidget
 
 
 class PackWorker(QThread):
@@ -118,7 +119,7 @@ class PackApp(QWidget):
 
     def initUI(self):
         self.setWindowTitle("简易打包解压工具")
-        self.setGeometry(300, 300, 650, 380)  # 调整窗口大小
+        self.setGeometry(300, 300, 450, 400)  # 调整窗口大小
 
         # --- 主布局 ---
         main_layout = QVBoxLayout()
@@ -201,7 +202,6 @@ class PackApp(QWidget):
         pack_layout.addWidget(self.dest_button, 2, 2)
 
         self.pack_group.setLayout(pack_layout)
-        main_layout.addWidget(self.pack_group)
 
         # --- 解压控件容器 ---
         self.unpack_group = QGroupBox("解压选项")
@@ -232,8 +232,11 @@ class PackApp(QWidget):
         unpack_layout.addWidget(self.extract_button, 1, 2)
 
         self.unpack_group.setLayout(unpack_layout)
-        main_layout.addWidget(self.unpack_group)
-        self.unpack_group.setVisible(False)  # 默认隐藏解压选项
+        self.stacked_widget = QStackedWidget()
+        self.stacked_widget.addWidget(self.pack_group)    # 添加打包页面 (索引 0)
+        self.stacked_widget.addWidget(self.unpack_group)
+
+        main_layout.addWidget(self.stacked_widget)
 
         # --- 公共控件 ---
         # 主操作按钮
@@ -275,23 +278,19 @@ class PackApp(QWidget):
 
     # --- 模式切换槽函数 ---
     def switch_mode(self, checked):
-        # 这个槽函数会在任一 radio button 状态改变时被调用两次
-        # 我们只关心 pack_radio 的状态即可确定当前模式
         if self.pack_radio.isChecked():
             if self.current_mode != self.MODE_PACK:
                 self.current_mode = self.MODE_PACK
-                self.pack_group.setVisible(True)
-                self.unpack_group.setVisible(False)
+                self.stacked_widget.setCurrentWidget(self.pack_group) # 切换到打包页面
                 self.status_label.setText("切换到打包模式")
-                self.clear_inputs()  # 清空输入
+                self.clear_inputs()
                 self.update_action_button_style()
-        else:  # unpack_radio is checked
+        else: # unpack_radio is checked
             if self.current_mode != self.MODE_UNPACK:
                 self.current_mode = self.MODE_UNPACK
-                self.pack_group.setVisible(False)
-                self.unpack_group.setVisible(True)
+                self.stacked_widget.setCurrentWidget(self.unpack_group) # 切换到解压页面
                 self.status_label.setText("切换到解压模式")
-                self.clear_inputs()  # 清空输入
+                self.clear_inputs()
                 self.update_action_button_style()
 
     def update_action_button_style(self):
