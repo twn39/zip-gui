@@ -1,7 +1,7 @@
 QWidget {
     background-color: #2E2E2E;
     color: #E0E0E0;
-    font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
     font-size: 12pt;
 }
 

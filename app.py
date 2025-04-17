@@ -51,29 +51,44 @@ class PackWorker(QThread):
     error = Signal(str)
     progress = Signal(int)
 
-    def __init__(self, source_dir, dest_file_base, archive_format, root_dir):
+    # 修改 __init__ 签名，添加 base_dir_to_archive 参数
+    def __init__(
+        self, dest_file_base, archive_format, root_dir_for_shutil, base_dir_to_archive
+    ):
         super().__init__()
-        self.source_dir = source_dir
+        # self.source_dir 不再直接用于 make_archive，但可以保留用于其他目的或移除
+        # self.source_dir = source_dir # 可以注释掉或删除这行
         self.dest_file_base = dest_file_base
         self.archive_format = archive_format
-        self.root_dir = root_dir
+        self.root_dir_for_shutil = root_dir_for_shutil  # 这是父目录
+        self.base_dir_to_archive = base_dir_to_archive  # 这是要打包的文件夹名
 
     def run(self):
         try:
             self.progress.emit(10)
+            # 更新打印信息以反映实际使用的参数
             print(
-                f"开始打包: base_name='{self.dest_file_base}', format='{self.archive_format}', root_dir='{self.root_dir}'"
+                f"开始打包: base_name='{self.dest_file_base}', format='{self.archive_format}', "
+                f"root_dir='{self.root_dir_for_shutil}', base_dir='{self.base_dir_to_archive}'"
             )
+            # 修改 shutil.make_archive 调用
             archive_path = shutil.make_archive(
                 base_name=self.dest_file_base,
                 format=self.archive_format,
-                root_dir=self.root_dir,
+                root_dir=self.root_dir_for_shutil,  # 使用父目录作为 root_dir
+                base_dir=self.base_dir_to_archive,  # 使用文件夹名作为 base_dir
             )
             self.progress.emit(100)
             self.finished.emit(f"成功打包到: {archive_path}")
         except Exception as e:
             print(f"打包出错: {e}")
-            self.error.emit(f"打包失败: {str(e)}")
+            # 考虑添加更具体的错误信息，例如检查 root_dir 和 base_dir 是否有效
+            if isinstance(e, FileNotFoundError):
+                self.error.emit(
+                    f"打包失败: 找不到源路径 '{os.path.join(self.root_dir_for_shutil, self.base_dir_to_archive)}'"
+                )
+            else:
+                self.error.emit(f"打包失败: {str(e)}")
         finally:
             pass
 
@@ -194,6 +209,7 @@ class PackApp(QWidget):
         self.format_label = QLabel("压缩类型:")
         self.format_combo = QComboBox()
         supported_formats = [fmt[0] for fmt in shutil.get_archive_formats()]
+        supported_formats.reverse()
         self.format_combo.addItems(supported_formats)
         pack_layout.addWidget(self.format_label, 1, 0)
         pack_layout.addWidget(self.format_combo, 1, 1)
@@ -424,6 +440,44 @@ class PackApp(QWidget):
             self.action_button.setEnabled(True)
             return
 
+        # --- 开始修改 ---
+        # 获取父目录和要打包的文件夹名称
+        parent_dir = os.path.dirname(source_dir)
+        folder_to_archive = os.path.basename(source_dir)
+
+        # 如果选择的是根目录 (例如 C:\)，dirname 会返回自身，basename 返回空
+        # 需要处理这种情况，或者在选择时进行限制
+        if not folder_to_archive:  # 通常发生在选择驱动器根目录时
+            # 对于根目录，行为可能需要特殊定义，这里我们让父目录为它自己，打包内容
+            # 但这可能不是用户期望的包含驱动器本身的打包。
+            # 或者直接报错不允许打包根驱动器。
+            # QMessageBox.warning(self, "输入错误", "不支持直接打包驱动器根目录。请选择其下的文件夹。")
+            # self.action_button.setEnabled(True)
+            # return
+            # 另一种处理：将父目录设为原 source_dir，打包其内容（恢复旧行为）
+            # parent_dir = source_dir
+            # folder_to_archive = '.' # 打包当前目录下的所有内容
+            # 最安全的做法是让父目录就是父目录，让 base_dir 为空或 '.'
+            # 但 shutil 要求 base_dir 不能是绝对路径，且必须在 root_dir 下
+            # 因此，如果 parent_dir 和 source_dir 相同，需要调整
+            if parent_dir == source_dir:
+                # 这种情况比较特殊，可能需要决定如何处理
+                # 选项1：报错
+                QMessageBox.warning(
+                    self, "输入错误", "无法确定打包范围，请选择普通文件夹。"
+                )
+                self.action_button.setEnabled(True)
+                return
+                # 选项2：打包 source_dir 的内容（旧行为）
+                # parent_dir = source_dir
+                # folder_to_archive = None # 或者 '.' ? 需要测试 shutil 的行为
+
+        # 如果父目录为空 (例如只输入了文件夹名，没有路径)，则使用当前工作目录
+        if not parent_dir:
+            parent_dir = "."  # 使用当前工作目录作为父目录
+
+        # --- 结束修改 ---
+
         dest_dir = os.path.dirname(dest_file_full_path)
         base_filename = os.path.basename(dest_file_full_path)
         base_name_for_shutil = dest_file_full_path
@@ -443,10 +497,12 @@ class PackApp(QWidget):
                 print(
                     f"警告: 文件名 '{base_filename}' 没有预期扩展名 '{expected_ext}'."
                 )
-        else:
-            base_name_for_shutil, _ = os.path.splitext(dest_file_full_path)
+        # else: # 如果没有预期的扩展名，之前是移除最后一个点之后的部分，这可能不总是正确
+        #     base_name_for_shutil, _ = os.path.splitext(dest_file_full_path)
+        # 保持 base_name_for_shutil 为用户指定的、去除了已知扩展名的路径
 
         try:
+            # 确保目标压缩文件所在的目录存在
             os.makedirs(os.path.dirname(base_name_for_shutil), exist_ok=True)
         except OSError as e:
             QMessageBox.critical(
@@ -460,13 +516,16 @@ class PackApp(QWidget):
         self.status_label.setText(f"正在打包 {archive_format}...")
         self.status_label.setStyleSheet("color: #FFD700;")  # 黄色
 
-        root_dir_for_shutil = source_dir
         self.worker = PackWorker(
-            source_dir, base_name_for_shutil, archive_format, root_dir_for_shutil
+            base_name_for_shutil,
+            archive_format,
+            parent_dir,  # root_dir_for_shutil
+            folder_to_archive,  # base_dir_to_archive
         )
+
         self.worker.progress.connect(self.update_progress)
-        self.worker.finished.connect(self.on_action_finished)  # 连接到通用完成槽
-        self.worker.error.connect(self.on_action_error)  # 连接到通用错误槽
+        self.worker.finished.connect(self.on_action_finished)
+        self.worker.error.connect(self.on_action_error)
         self.worker.start()
 
     def start_unpacking(self):
