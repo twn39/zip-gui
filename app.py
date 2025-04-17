@@ -170,13 +170,13 @@ class PackApp(QWidget):
             "fa5s.folder-plus", color=icon_color, color_active=icon_color_active
         )
 
-        self.source_label = QLabel("源文件夹:")
+        self.source_label = QLabel("源文件/文件夹:")
         self.source_edit = QLineEdit()
-        self.source_edit.setPlaceholderText("选择要打包的文件夹")
+        self.source_edit.setPlaceholderText("选择文件夹或输入文件路径")
         self.source_button = QPushButton()
         self.source_button.setIcon(folder_icon)
         self.source_button.setIconSize(icon_size)
-        self.source_button.setToolTip("选择源文件夹")
+        self.source_button.setToolTip("选择源文件夹 (或手动输入文件路径)")
         pack_layout.addWidget(self.source_label, 0, 0)
         pack_layout.addWidget(self.source_edit, 0, 1)
         pack_layout.addWidget(self.source_button, 0, 2)
@@ -267,7 +267,7 @@ class PackApp(QWidget):
         self.setLayout(main_layout)
 
         # --- 连接信号与槽 ---
-        self.source_button.clicked.connect(self.select_source_folder)
+        self.source_button.clicked.connect(self.select_source_path)
         self.dest_button.clicked.connect(self.select_dest_file)
         self.archive_button.clicked.connect(self.select_archive_file)
         self.extract_button.clicked.connect(self.select_extract_folder)
@@ -334,7 +334,7 @@ class PackApp(QWidget):
         self.progress_bar.setStyleSheet("")  # 清除进度条样式
         self.status_label.setStyleSheet("color: #A9A9A9;")  # 恢复默认颜色
 
-    def select_source_folder(self):
+    def select_source_path(self):
         folder = QFileDialog.getExistingDirectory(self, "选择源文件夹")
         if folder:
             self.source_edit.setText(folder)
@@ -352,14 +352,22 @@ class PackApp(QWidget):
         }
         extension = format_map.get(selected_format, selected_format)
         filter_str = f"{selected_format.upper()} 文件 (*.{extension})"
-        source_folder_path = self.source_edit.text()
+
+        source_path = self.source_edit.text() # 使用 source_path 变量名
         suggested_path = ""
-        if source_folder_path and os.path.isdir(source_folder_path):
-            folder_name = os.path.basename(source_folder_path)
-            parent_dir = os.path.dirname(source_folder_path)
-            suggested_path = os.path.join(
-                parent_dir or ".", f"{folder_name}.{extension}"
-            )
+        if source_path and os.path.exists(source_path): # 检查路径是否存在 (文件或文件夹)
+            base_name = os.path.basename(source_path) # 获取基本名称 (文件或文件夹名)
+            parent_dir = os.path.dirname(source_path)
+            # 如果 base_name 为空 (例如 C:\)，则使用默认名称或不建议
+            if base_name:
+                suggested_path = os.path.join(
+                    parent_dir or ".", f"{base_name}.{extension}"
+                )
+            else:
+                # 对于根目录等情况，可以提供一个默认名称
+                suggested_path = os.path.join(parent_dir or ".", f"archive.{extension}")
+
+
         file_path, _ = QFileDialog.getSaveFileName(
             self, "选择保存位置和文件名", suggested_path, filter_str
         )
@@ -395,57 +403,41 @@ class PackApp(QWidget):
             self.start_unpacking()
 
     def start_packaging(self):
-        source_dir = self.source_edit.text()
+        # 使用更通用的变量名 source_path
+        source_path = self.source_edit.text()
         dest_file_full_path = self.dest_edit.text()
         archive_format = self.format_combo.currentText()
 
-        if not source_dir or not os.path.isdir(source_dir):
-            QMessageBox.warning(self, "输入错误", "请选择一个有效的源文件夹！")
+        # 检查路径是否存在，无论是文件还是文件夹
+        if not source_path or not os.path.exists(source_path):
+            QMessageBox.warning(self, "输入错误", "请选择或输入一个有效的源文件或文件夹！") # <--- 修改错误信息
             self.action_button.setEnabled(True)
             return
+
         if not dest_file_full_path:
             QMessageBox.warning(self, "输入错误", "请选择保存路径和文件名！")
             self.action_button.setEnabled(True)
             return
 
-        # --- 开始修改 ---
-        # 获取父目录和要打包的文件夹名称
-        parent_dir = os.path.dirname(source_dir)
-        folder_to_archive = os.path.basename(source_dir)
+        # 获取源路径的父目录
+        parent_dir = os.path.dirname(source_path)
+        # 获取源路径的基本名称 (文件名或文件夹名)
+        item_to_archive = os.path.basename(source_path)
 
-        # 如果选择的是根目录 (例如 C:\)，dirname 会返回自身，basename 返回空
-        # 需要处理这种情况，或者在选择时进行限制
-        if not folder_to_archive:  # 通常发生在选择驱动器根目录时
-            # 对于根目录，行为可能需要特殊定义，这里我们让父目录为它自己，打包内容
-            # 但这可能不是用户期望的包含驱动器本身的打包。
-            # 或者直接报错不允许打包根驱动器。
-            # QMessageBox.warning(self, "输入错误", "不支持直接打包驱动器根目录。请选择其下的文件夹。")
-            # self.action_button.setEnabled(True)
-            # return
-            # 另一种处理：将父目录设为原 source_dir，打包其内容（恢复旧行为）
-            # parent_dir = source_dir
-            # folder_to_archive = '.' # 打包当前目录下的所有内容
-            # 最安全的做法是让父目录就是父目录，让 base_dir 为空或 '.'
-            # 但 shutil 要求 base_dir 不能是绝对路径，且必须在 root_dir 下
-            # 因此，如果 parent_dir 和 source_dir 相同，需要调整
-            if parent_dir == source_dir:
-                # 这种情况比较特殊，可能需要决定如何处理
-                # 选项1：报错
-                QMessageBox.warning(
-                    self, "输入错误", "无法确定打包范围，请选择普通文件夹。"
-                )
-                self.action_button.setEnabled(True)
-                return
-                # 选项2：打包 source_dir 的内容（旧行为）
-                # parent_dir = source_dir
-                # folder_to_archive = None # 或者 '.' ? 需要测试 shutil 的行为
+        # 处理特殊情况：
+        # 1. 如果选择的是驱动器根目录 (例如 C:\), basename 会是空
+        if not item_to_archive:
+            QMessageBox.warning(self, "输入错误", "不支持直接打包驱动器根目录。")
+            self.action_button.setEnabled(True)
+            return
 
-        # 如果父目录为空 (例如只输入了文件夹名，没有路径)，则使用当前工作目录
+        # 2. 如果父目录为空 (例如只输入了文件名/文件夹名，表示在当前目录下)
+        #    os.path.dirname("myfile.txt") 返回 ''
+        #    shutil.make_archive 的 root_dir 需要一个实际路径，'.' 代表当前工作目录
         if not parent_dir:
-            parent_dir = "."  # 使用当前工作目录作为父目录
+            parent_dir = "."
 
-        # --- 结束修改 ---
-
+        # --- (处理目标文件名的逻辑保持不变) ---
         dest_dir = os.path.dirname(dest_file_full_path)
         base_filename = os.path.basename(dest_file_full_path)
         base_name_for_shutil = dest_file_full_path
@@ -465,7 +457,7 @@ class PackApp(QWidget):
                 print(
                     f"警告: 文件名 '{base_filename}' 没有预期扩展名 '{expected_ext}'."
                 )
-
+        # --- (目标目录创建逻辑保持不变) ---
         try:
             os.makedirs(os.path.dirname(base_name_for_shutil), exist_ok=True)
         except OSError as e:
@@ -480,11 +472,12 @@ class PackApp(QWidget):
         self.status_label.setText(f"正在打包 {archive_format}...")
         self.status_label.setStyleSheet("color: #FFD700;")  # 黄色
 
+        # 使用计算好的 parent_dir 和 item_to_archive
         self.worker = PackWorker(
             base_name_for_shutil,
             archive_format,
-            parent_dir,  # root_dir_for_shutil
-            folder_to_archive,  # base_dir_to_archive
+            parent_dir,          # root_dir: 父目录
+            item_to_archive,     # base_dir: 要打包的文件或文件夹名
         )
 
         self.worker.progress.connect(self.update_progress)
