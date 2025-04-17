@@ -62,11 +62,6 @@ QComboBox::drop-down {
     background-color: #424242;
 }
 
-QComboBox::down-arrow {
-     image: url(:/qt-project.org/styles/commonstyle/images/downarraow-16.png);
-     width: 10px;
-     height: 10px;
-}
 QComboBox QAbstractItemView {
     background-color: #3C3C3C;
     border: 1px solid #555555;
@@ -159,8 +154,6 @@ QRadioButton::indicator {
 QRadioButton::indicator:checked {
     background-color: #50A0D0; /* 选中时的颜色 */
     border: 1px solid #77AADD;
-    /* 可以添加一个内部小圆点 */
-    image: url(:/qt-project.org/styles/commonstyle/images/radiobutton-checked-16.png); /* 尝试使用内置图标 */
 }
 QRadioButton::indicator:unchecked:hover {
     border: 1px solid #77AADD;
