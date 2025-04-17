@@ -21,29 +21,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QThread, Signal, QSize
 from PySide6.QtGui import QIcon
 import qtawesome as qta
-
-
-def resource_path(relative_path):
-    """获取资源的绝对路径，适用于开发环境和 PyInstaller 打包环境"""
-    try:
-        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-            base_path = sys._MEIPASS
-        else:
-            base_path = os.path.dirname(os.path.abspath(__file__))
-    except Exception:
-        base_path = os.path.abspath(".")
-
-    return os.path.join(base_path, relative_path)
-
-
-def load_stylesheet(filename="theme.qss"):
-    filepath = resource_path(filename)
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception as e:
-        print(f"加载样式文件时出错: {e}")
-        return None
+from style import load_stylesheet
 
 
 class PackWorker(QThread):
@@ -51,13 +29,10 @@ class PackWorker(QThread):
     error = Signal(str)
     progress = Signal(int)
 
-    # 修改 __init__ 签名，添加 base_dir_to_archive 参数
     def __init__(
         self, dest_file_base, archive_format, root_dir_for_shutil, base_dir_to_archive
     ):
         super().__init__()
-        # self.source_dir 不再直接用于 make_archive，但可以保留用于其他目的或移除
-        # self.source_dir = source_dir # 可以注释掉或删除这行
         self.dest_file_base = dest_file_base
         self.archive_format = archive_format
         self.root_dir_for_shutil = root_dir_for_shutil  # 这是父目录
@@ -138,7 +113,7 @@ class PackApp(QWidget):
     def __init__(self):
         super().__init__()
         self.worker = None
-        self.current_mode = self.MODE_PACK  # 默认是打包模式
+        self.current_mode = self.MODE_PACK
         self.initUI()
 
     def initUI(self):
@@ -154,7 +129,6 @@ class PackApp(QWidget):
         self.unpack_radio = QRadioButton("解压模式")
         self.pack_radio.setChecked(True)  # 默认选中打包
         self.pack_radio.toggled.connect(self.switch_mode)
-        # self.unpack_radio.toggled.connect(self.switch_mode) # 只需要连接一个即可
 
         mode_layout.addWidget(self.pack_radio)
         mode_layout.addWidget(self.unpack_radio)
@@ -170,7 +144,7 @@ class PackApp(QWidget):
 
         # --- 打包控件容器 ---
         self.pack_group = QGroupBox("打包选项")
-        pack_layout = QGridLayout()  # 使用网格布局更规整
+        pack_layout = QGridLayout()
 
         # 图标
         icon_size = QSize(20, 20)
@@ -349,11 +323,7 @@ class PackApp(QWidget):
             except Exception:
                 self.action_button.setIcon(QIcon())
             self.action_button.setIconSize(icon_size)
-            # 可以为解压按钮设置不同的颜色，或者使用默认按钮样式
-            # 例如，恢复默认样式:
             self.action_button.setStyleSheet("")  # 清除可能存在的特定样式，让 QSS 生效
-            # 或者设置特定颜色:
-            # self.action_button.setStyleSheet("background-color: #FF8C00;") # 橙色
 
     def clear_inputs(self):
         """清空所有输入框"""
@@ -400,7 +370,6 @@ class PackApp(QWidget):
             self.status_label.setStyleSheet("color: #A9A9A9;")
 
     def select_archive_file(self):
-        # 提供常见压缩文件类型的过滤器
         filters = "压缩文件 (*.zip *.rar *.7z *.tar *.gz *.bz2 *.xz);;所有文件 (*.*)"
         file_path, _ = QFileDialog.getOpenFileName(self, "选择压缩文件", "", filters)
         if file_path:
@@ -497,12 +466,8 @@ class PackApp(QWidget):
                 print(
                     f"警告: 文件名 '{base_filename}' 没有预期扩展名 '{expected_ext}'."
                 )
-        # else: # 如果没有预期的扩展名，之前是移除最后一个点之后的部分，这可能不总是正确
-        #     base_name_for_shutil, _ = os.path.splitext(dest_file_full_path)
-        # 保持 base_name_for_shutil 为用户指定的、去除了已知扩展名的路径
 
         try:
-            # 确保目标压缩文件所在的目录存在
             os.makedirs(os.path.dirname(base_name_for_shutil), exist_ok=True)
         except OSError as e:
             QMessageBox.critical(
@@ -541,7 +506,6 @@ class PackApp(QWidget):
             self.action_button.setEnabled(True)
             return
 
-        # 可以在这里检查目标文件夹是否已存在且非空，并提示用户
         if os.path.isdir(extract_dir) and os.listdir(extract_dir):
             reply = QMessageBox.question(
                 self,
@@ -563,7 +527,6 @@ class PackApp(QWidget):
         self.worker.error.connect(self.on_action_error)  # 连接到通用错误槽
         self.worker.start()
 
-    # --- 通用槽函数 ---
     def update_progress(self, value):
         self.progress_bar.setValue(value)
 
