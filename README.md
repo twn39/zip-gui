@@ -6,7 +6,9 @@
 
 A clean and straightforward graphical interface for compressing (packing) and extracting (unpacking) archive files, built with Python and PySide6.
 
-![ZipGUI Screenshot](./screen.png)
+<div align="center">
+  <img src="./screen.png" alt="图片描述" width="500"/>
+</div>
 
 ## Overview
 
