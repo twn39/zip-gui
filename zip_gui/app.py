@@ -435,7 +435,7 @@ class PackApp(QWidget):
         #    os.path.dirname("myfile.txt") 返回 ''
         #    shutil.make_archive 的 root_dir 需要一个实际路径，'.' 代表当前工作目录
         if not parent_dir:
-            parent_dir = "."
+            parent_dir = ".."
 
         # --- (处理目标文件名的逻辑保持不变) ---
         dest_dir = os.path.dirname(dest_file_full_path)
@@ -549,7 +549,7 @@ class PackApp(QWidget):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    style_sheet = load_stylesheet("theme.qss")
+    style_sheet = load_stylesheet()
     if style_sheet:
         app.setStyleSheet(style_sheet)
     ex = PackApp()

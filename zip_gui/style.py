@@ -1,3 +1,4 @@
+theme_style = """
 QWidget {
     background-color: #2E2E2E;
     color: #E0E0E0;
@@ -186,3 +187,8 @@ QFrame[frameShape="5"] { /* HLine specific style */
     border-top: 1px solid #444444; /* Line color */
     margin: 5px 0px; /* Add some vertical margin */
 }
+"""
+
+
+def load_stylesheet() -> str:
+    return theme_style

@@ -3,10 +3,10 @@
 block_cipher = None
 
 a = Analysis(
-    ['app.py'],
+    ['zip_gui/app.py'],
     pathex=[],
     binaries=[],
-    datas=[('theme.qss', '.')],
+    datas=[],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
