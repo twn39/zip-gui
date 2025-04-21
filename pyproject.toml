@@ -1,6 +1,6 @@
 [project]
 name = "zip_gui"
-version = "1.0.0"
+version = "1.0.1"
 description = "A clean and straightforward graphical interface for compressing (packing) and extracting (unpacking) archive files, built with Python and PySide6."
 
 keywords = ["GUI", "zip", "zip gui", "compress"]
@@ -29,6 +29,13 @@ dependencies = [
 
 [project.scripts]
 zip-gui = "zip_gui.app:run"
+
+[project.urls]
+"Homepage" = "https://github.com/twn39/zip-gui"
+"Documentation" = "https://github.com/twn39/zip-gui"
+"Repository" = "https://github.com/twn39/zip-gui"
+"Source Code" = "https://github.com/twn39/zip-gui"
+
 
 [build-system]
 requires = ["hatchling==1.26.3"]
