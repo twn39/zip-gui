@@ -1,5 +1,5 @@
 [project]
-name = "zip-gui"
+name = "zip_gui"
 version = "1.0.0"
 description = "A clean and straightforward graphical interface for compressing (packing) and extracting (unpacking) archive files, built with Python and PySide6."
 

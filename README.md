@@ -1,6 +1,7 @@
 # ZipGUI - Simple Archive Utility
 
-[![Python Version](https://img.shields.io/badge/python-3.7%2B-blue.svg)](https://www.python.org/)
+[![PyPI version](https://badge.fury.io/py/zip_gui.svg)](https://badge.fury.io/py/zip_gui)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![Framework](https://img.shields.io/badge/Framework-PySide6-informational)](https://www.qt.io/qt-for-python)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) <!-- 你可以添加一个 LICENSE 文件 -->
 
