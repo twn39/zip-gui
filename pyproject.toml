@@ -1,7 +1,25 @@
 [project]
 name = "zip-gui"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "A clean and straightforward graphical interface for compressing (packing) and extracting (unpacking) archive files, built with Python and PySide6."
+
+keywords = ["GUI", "zip", "zip gui", "compress"]
+authors = [
+    { name = "curry tang", email = "twn39@163.com" }
+]
+maintainers = [
+    { name = "curry tang", email = "twn39@163.com" }
+]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -9,6 +27,8 @@ dependencies = [
     "qtawesome>=1.4.0",
 ]
 
+[project.scripts]
+zip-gui = "zip_gui.app:run"
 
 [build-system]
 requires = ["hatchling==1.26.3"]

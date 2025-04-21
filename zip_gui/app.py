@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QThread, Signal, QSize
 from PySide6.QtGui import QIcon
 import qtawesome as qta
-from style import load_stylesheet
+from .style import load_stylesheet
 from PySide6.QtWidgets import QStackedWidget
 
 
@@ -233,7 +233,7 @@ class PackApp(QWidget):
 
         self.unpack_group.setLayout(unpack_layout)
         self.stacked_widget = QStackedWidget()
-        self.stacked_widget.addWidget(self.pack_group)    # 添加打包页面 (索引 0)
+        self.stacked_widget.addWidget(self.pack_group)  # 添加打包页面 (索引 0)
         self.stacked_widget.addWidget(self.unpack_group)
 
         main_layout.addWidget(self.stacked_widget)
@@ -281,14 +281,16 @@ class PackApp(QWidget):
         if self.pack_radio.isChecked():
             if self.current_mode != self.MODE_PACK:
                 self.current_mode = self.MODE_PACK
-                self.stacked_widget.setCurrentWidget(self.pack_group) # 切换到打包页面
+                self.stacked_widget.setCurrentWidget(self.pack_group)  # 切换到打包页面
                 self.status_label.setText("切换到打包模式")
                 self.clear_inputs()
                 self.update_action_button_style()
-        else: # unpack_radio is checked
+        else:  # unpack_radio is checked
             if self.current_mode != self.MODE_UNPACK:
                 self.current_mode = self.MODE_UNPACK
-                self.stacked_widget.setCurrentWidget(self.unpack_group) # 切换到解压页面
+                self.stacked_widget.setCurrentWidget(
+                    self.unpack_group
+                )  # 切换到解压页面
                 self.status_label.setText("切换到解压模式")
                 self.clear_inputs()
                 self.update_action_button_style()
@@ -353,10 +355,12 @@ class PackApp(QWidget):
         extension = format_map.get(selected_format, selected_format)
         filter_str = f"{selected_format.upper()} 文件 (*.{extension})"
 
-        source_path = self.source_edit.text() # 使用 source_path 变量名
+        source_path = self.source_edit.text()  # 使用 source_path 变量名
         suggested_path = ""
-        if source_path and os.path.exists(source_path): # 检查路径是否存在 (文件或文件夹)
-            base_name = os.path.basename(source_path) # 获取基本名称 (文件或文件夹名)
+        if source_path and os.path.exists(
+            source_path
+        ):  # 检查路径是否存在 (文件或文件夹)
+            base_name = os.path.basename(source_path)  # 获取基本名称 (文件或文件夹名)
             parent_dir = os.path.dirname(source_path)
             # 如果 base_name 为空 (例如 C:\)，则使用默认名称或不建议
             if base_name:
@@ -366,7 +370,6 @@ class PackApp(QWidget):
             else:
                 # 对于根目录等情况，可以提供一个默认名称
                 suggested_path = os.path.join(parent_dir or ".", f"archive.{extension}")
-
 
         file_path, _ = QFileDialog.getSaveFileName(
             self, "选择保存位置和文件名", suggested_path, filter_str
@@ -410,7 +413,9 @@ class PackApp(QWidget):
 
         # 检查路径是否存在，无论是文件还是文件夹
         if not source_path or not os.path.exists(source_path):
-            QMessageBox.warning(self, "输入错误", "请选择或输入一个有效的源文件或文件夹！") # <--- 修改错误信息
+            QMessageBox.warning(
+                self, "输入错误", "请选择或输入一个有效的源文件或文件夹！"
+            )
             self.action_button.setEnabled(True)
             return
 
@@ -476,8 +481,8 @@ class PackApp(QWidget):
         self.worker = PackWorker(
             base_name_for_shutil,
             archive_format,
-            parent_dir,          # root_dir: 父目录
-            item_to_archive,     # base_dir: 要打包的文件或文件夹名
+            parent_dir,  # root_dir: 父目录
+            item_to_archive,  # base_dir: 要打包的文件或文件夹名
         )
 
         self.worker.progress.connect(self.update_progress)
@@ -547,7 +552,7 @@ class PackApp(QWidget):
         self.worker = None
 
 
-if __name__ == "__main__":
+def run():
     app = QApplication(sys.argv)
     style_sheet = load_stylesheet()
     if style_sheet:
@@ -555,3 +560,7 @@ if __name__ == "__main__":
     ex = PackApp()
     ex.show()
     sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    run()
