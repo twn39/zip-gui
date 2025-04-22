@@ -73,22 +73,23 @@ QComboBox QAbstractItemView {
 }
 
 QPushButton {
-    background-color: #4A4A4A;
-    border: 1px solid #606060;
-    border-radius: 4px;
-    padding: 6px 12px;
-    color: #E0E0E0;
-    min-width: 30px;
-    min-height: 22px;
+    background-color: #4D4D4D; 
+    border: 1px solid #606060; 
+    border-radius: 4px; 
+    padding: 6px 12px; 
+    color: #FFFFFF; 
+    min-height: 22px; 
+    min-width: 30px; 
+    outline: none; 
 }
 
 QPushButton:hover {
-    background-color: #5A5A5A;
+    background-color: #5A5A5A; 
     border-color: #777777;
 }
 
 QPushButton:pressed {
-    background-color: #6A6A6A;
+    background-color: #636363; /* Darker/different shade when pressed */
 }
 
 QPushButton:disabled {
@@ -97,28 +98,26 @@ QPushButton:disabled {
     border-color: #505050;
 }
 
-/* === 主操作按钮样式 (ActionButton) === */
-/* 默认是打包按钮的绿色 */
 QPushButton#ActionButton {
     font-weight: bold;
-    background-color: #4CAF50; /* 主要绿色 */
-    color: #FFFFFF; /* 白色文字 */
-    min-width: 100px; /* 稍宽一点 */
+    background-color: #3584e4; 
+    color: #FFFFFF; 
+    border: 1px solid #1e6fbf; 
+    min-width: 100px; 
 }
 QPushButton#ActionButton:hover {
-    background-color: #66BB6A;
-    color: #FFFFFF;
+    background-color: #4991e9; 
+    border-color: #3584e4;
 }
 QPushButton#ActionButton:pressed {
-    background-color: #388E3C;
-    color: #FFFFFF;
+    background-color: #1e6fbf; 
+    border-color: #15538c;
 }
 QPushButton#ActionButton:disabled {
-    background-color: #A5D6A7;
-    color: #616161;
-    border-color: #81C784;
+    background-color: #77a8ec; 
+    color: rgba(255, 255, 255, 0.7); 
+    border-color: #5c8dd8;
 }
-/* 如果需要在解压模式下改变按钮颜色，可以在 switch_mode 中用 setStyleSheet 实现 */
 
 
 QProgressBar {
@@ -131,7 +130,7 @@ QProgressBar {
 }
 
 QProgressBar::chunk {
-    background-color: #50A0D0; /* 默认蓝色进度 */
+    background-color: #50A0D0; 
     border-radius: 5px;
 }
 
@@ -144,20 +143,22 @@ QLabel#StatusLabel {
 QRadioButton {
     color: #C0C0C0;
     padding: 3px;
+    background-color: transparent;
+    font-size: 10pt;
 }
 QRadioButton::indicator {
-    width: 14px;
-    height: 14px;
-    border: 1px solid #555555;
-    border-radius: 7px; /* 圆形 */
-    background-color: #3C3C3C;
+    width: 16px; 
+    height: 16px;
+    border: 1px solid #777777; 
+    border-radius: 9px; 
+    background-color: #3D3D3D; 
 }
 QRadioButton::indicator:checked {
-    background-color: #50A0D0; /* 选中时的颜色 */
-    border: 1px solid #77AADD;
+    background-color: #3584e4; 
+    border: 1px solid #3584e4; 
 }
 QRadioButton::indicator:unchecked:hover {
-    border: 1px solid #77AADD;
+    border: 1px solid #3584e4; 
 }
 QRadioButton:disabled {
     color: #808080;
