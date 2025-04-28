@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QThread, Signal, QSize
 from PySide6.QtGui import QIcon
 import qtawesome as qta
-from .style import load_stylesheet
+from zip_gui.style import load_stylesheet
 from PySide6.QtWidgets import QStackedWidget
 
 
