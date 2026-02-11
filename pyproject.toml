@@ -41,9 +41,8 @@ zip-gui = "zip_gui.app:run"
 requires = ["hatchling==1.26.3"]
 build-backend = "hatchling.build"
 
-[tool.rye]
-managed = true
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pyinstaller>=6.13.0",
 ]
 
