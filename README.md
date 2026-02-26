@@ -1,7 +1,7 @@
 # ZipGUI - Simple Archive Utility
 
 [![PyPI version](https://badge.fury.io/py/zip_gui.svg)](https://badge.fury.io/py/zip_gui)
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/python-3.11%7E3.14-blue.svg)](https://www.python.org/)
 [![Framework](https://img.shields.io/badge/Framework-PySide6-informational)](https://www.qt.io/qt-for-python)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) <!-- 你可以添加一个 LICENSE 文件 -->
 
@@ -25,24 +25,39 @@ Whether you need to quickly compress a folder or extract an archive, ZipGUI simp
 
 ## 📋 Requirements
 
-*   **Python:** 3.7 or higher
+*   **Python:** 3.11 or higher (支持 3.11 ~ 3.14)
 *   **PySide6:** The Qt for Python framework.
 
-## 📦 Building Executable (Optional)
+## 🚀 Installation
+
+```bash
+# 安装依赖
+uv sync
+
+# 运行应用
+uv run zip-gui
+```
+
+## 📦 Building Executable
 
 You can create a standalone executable using PyInstaller.
 
-*   **Using the spec file (Recommended for more control):**
-    Then build using the spec file:
-    ```bash
-    pyinstaller --clean ZipGUI.spec
-    ```
-*   **Simple one-file build:**
-    ```bash
-    pyinstaller --onefile --windowed --name="ZipGUI" app.py
-    ```
+```bash
+# 安装开发依赖（包含 PyInstaller）
+uv sync --group dev
+
+# 使用 spec 文件打包（推荐）
+uv run pyinstaller --clean ZipGUI.spec
+
+# 或者简单的单文件打包
+uv run pyinstaller --onefile --windowed --name="ZipGUI" zip_gui/app.py
+```
 
 The executable will be located in the `dist` folder.
+
+- **macOS:** `dist/ZipGUI.app`
+- **Windows:** `dist/ZipGUI.exe`
+- **Linux:** `dist/ZipGUI`
 
 ## 🤝 Contributing
 
