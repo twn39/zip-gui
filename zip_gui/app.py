@@ -593,6 +593,7 @@ class MainWindow(QMainWindow):
         else:
             paths = self._get_selected_fs_paths()
             if not paths:
+                self._show_project_info()
                 return
             archive = paths[0]
 
@@ -658,6 +659,42 @@ class MainWindow(QMainWindow):
             "支持 ZIP、TAR、GZ、BZ2、XZ 格式。</p>"
             "<p>基于 PySide6 构建</p>"
             '<p><a href="https://github.com/twn39/zip-gui">GitHub</a></p>',
+        )
+
+    def _show_project_info(self):
+        """Show project information dialog."""
+        from importlib.metadata import metadata
+
+        try:
+            meta = metadata("zip_gui")
+            name = meta["Name"] or "ZipGUI"
+            version = meta["Version"] or "未知"
+            home_page = meta["Home-page"] or ""
+        except Exception:
+            name = "ZipGUI"
+            version = "未知"
+            home_page = ""
+
+        repo_url = home_page or "https://github.com/twn39/zip-gui"
+
+        QMessageBox.about(
+            self,
+            "项目信息",
+            f'<div style="text-align:center; margin-bottom:12px;">'
+            f'<h2 style="margin-bottom:4px;">📦 {name}</h2>'
+            f'<span style="color:#999; font-size:13px;">v{version}</span>'
+            f'</div>'
+            f'<hr style="border:none; border-top:1px solid #555; margin:8px 0 12px 0;">'
+            f'<table cellspacing="6" style="font-size:13px;">'
+            f'<tr><td style="color:#999;">描述</td>'
+            f'<td>简洁高效的压缩文件管理工具</td></tr>'
+            f'<tr><td style="color:#999;">格式</td>'
+            f'<td>ZIP · TAR · GZ · BZ2 · XZ</td></tr>'
+            f'<tr><td style="color:#999;">框架</td>'
+            f'<td>Python + PySide6</td></tr>'
+            f'<tr><td style="color:#999;">源码</td>'
+            f'<td><a href="{repo_url}">{repo_url}</a></td></tr>'
+            f'</table>',
         )
 
     # ──────────────────────── Context Menu ────────────────────────
