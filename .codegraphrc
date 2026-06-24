@@ -1,0 +1,7 @@
+{
+  "include": ["zip_gui", "tests"],
+  "exclude": ["build", "dist", ".venv"],
+  "output": ".codegraph",
+  "languages": ["python"],
+  "cache": true
+}

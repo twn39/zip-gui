@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import sys
 
 from PySide6.QtWidgets import (
@@ -30,7 +29,6 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QSize, QDir, QModelIndex
 from PySide6.QtGui import QAction, QKeySequence
-import qtawesome as qta
 
 from zip_gui.style import load_stylesheet
 from zip_gui.resources import Icons, Colors, icon as get_icon
@@ -42,18 +40,28 @@ from zip_gui.archive_handler import (
     ArchiveFormat,
 )
 from zip_gui.archive_model import ArchiveModel, ArchiveSortProxyModel
-from zip_gui.workers import PackWorker, UnpackWorker, TestWorker, FileOperationWorker
+from zip_gui.presenter import NavigationPresenter
 
 
 class MainWindow(QMainWindow):
-    """WinRAR / 7-Zip style archive manager main window."""
+    """WinRAR / 7-Zip style archive manager main window (View)."""
 
     def __init__(self):
         super().__init__()
-        self._worker = None  # Keep reference to prevent GC
-        self._mode = "filesystem"  # "filesystem" or "archive"
-        self._current_archive_path = ""
         self._init_ui()
+        self.presenter = NavigationPresenter(
+            self,
+            self._archive_model,
+            self._fs_model,
+            self._archive_sort_proxy,
+        )
+
+        # Start at home directory
+        home = QDir.homePath()
+        self.presenter.navigate_to_dir(home)
+
+        # Selection change updates status
+        self._tree.selectionModel().selectionChanged.connect(self._update_status_count)
 
     # ──────────────────────────── UI Setup ────────────────────────────
 
@@ -129,13 +137,6 @@ class MainWindow(QMainWindow):
 
         self._count_label = QLabel()
         self._status_bar.addPermanentWidget(self._count_label)
-
-        # Start at home directory
-        home = QDir.homePath()
-        self._navigate_to_dir(home)
-
-        # Selection change updates status
-        self._tree.selectionModel().selectionChanged.connect(self._update_status_count)
 
     def _create_menu_bar(self):
         """Build the menu bar."""
@@ -239,136 +240,105 @@ class MainWindow(QMainWindow):
         self._act_info.triggered.connect(self._on_info)
         toolbar.addAction(self._act_info)
 
-    # ──────────────────────── Navigation ────────────────────────
+    # ──────────────────────── View Interface ────────────────────────
 
-    def _navigate_to_dir(self, path: str):
-        """Navigate to a filesystem directory."""
-        self._mode = "filesystem"
-        self._current_archive_path = ""
-        self._tree.setModel(self._fs_model)
-        idx = self._fs_model.index(path)
-        self._tree.setRootIndex(idx)
-        self._tree.setSortingEnabled(True)
+    def set_model(self, model):
+        self._tree.setModel(model)
 
-        # Re-set column widths after model change
+    def set_root_index(self, index):
+        if index is None:
+            self._tree.setRootIndex(self._archive_sort_proxy.mapFromSource(QModelIndex()))
+        else:
+            self._tree.setRootIndex(index)
+
+    def set_sorting_enabled(self, enabled: bool):
+        self._tree.setSortingEnabled(enabled)
+
+    def reset_column_widths(self):
         header = self._tree.header()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
 
-        self._address_bar.set_path(path)
-        self._update_action_states()
+    def update_address_bar(self, path: str, in_archive: bool, archive_path: str, archive_internal: str):
+        self._address_bar.set_path(
+            path,
+            in_archive=in_archive,
+            archive_path=archive_path,
+            archive_internal=archive_internal,
+        )
+
+    def get_address_path(self) -> str:
+        return self._address_bar.get_path()
+
+    def show_message(self, title: str, message: str, icon_type: str = "info"):
+        if icon_type == "critical":
+            QMessageBox.critical(self, title, message)
+        elif icon_type == "warning":
+            QMessageBox.warning(self, title, message)
+        else:
+            QMessageBox.information(self, title, message)
+
+    def show_progress_bar(self, visible: bool):
+        self._progress_bar.setVisible(visible)
+        if visible:
+            self._progress_bar.setValue(0)
+
+    def set_progress_value(self, value: int):
+        self._progress_bar.setValue(value)
+
+    def set_status_text(self, text: str):
+        self._status_label.setText(text)
+
+    def prompt_save_dialog(self, title: str, default_path: str, filter_str: str) -> tuple[str, str]:
+        return QFileDialog.getSaveFileName(self, title, default_path, filter_str)
+
+    def prompt_directory_dialog(self, title: str) -> str:
+        return QFileDialog.getExistingDirectory(self, title)
+
+    def prompt_input_dialog(self, title: str, label: str, text: str) -> tuple[str, bool]:
+        return QInputDialog.getText(self, title, label, text=text)
+
+    def confirm_dialog(self, title: str, text: str) -> bool:
+        reply = QMessageBox.question(
+            self,
+            title,
+            text,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
+    def get_selected_fs_paths(self) -> list[str]:
+        return self._get_selected_fs_paths()
+
+    def get_selected_archive_entries(self) -> list[str]:
+        return self._get_selected_archive_entries()
+
+    def update_action_states(self, is_filesystem: bool):
+        self._act_add.setEnabled(is_filesystem)
+        self._act_copy.setEnabled(is_filesystem)
+        self._act_move.setEnabled(is_filesystem)
+        self._act_delete.setEnabled(is_filesystem)
+
+    def update_status_count(self):
         self._update_status_count()
 
-        # Reconnect selection model
-        self._tree.selectionModel().selectionChanged.connect(self._update_status_count)
-
-    def _navigate_into_archive(self, archive_path: str):
-        """Open an archive and show its contents."""
-        try:
-            info = list_contents(archive_path)
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"无法打开压缩包:\n{e}")
-            return
-
-        self._mode = "archive"
-        self._current_archive_path = archive_path
-        self._archive_model.set_archive(info)
-
-        self._tree.setModel(self._archive_sort_proxy)
-        self._tree.setRootIndex(self._archive_sort_proxy.mapFromSource(QModelIndex()))
-        self._tree.setSortingEnabled(True)
-
-        # Re-set column widths
-        header = self._tree.header()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-
-        self._address_bar.set_path(
-            archive_path,
-            in_archive=True,
-            archive_path=archive_path,
-            archive_internal="",
-        )
-        self._update_action_states()
-        self._status_label.setText(
-            f"压缩包: {info.total_files} 个文件, "
-            f"大小: {format_size(info.total_size)}, "
-            f"压缩后: {format_size(info.total_compressed)}"
-        )
-
-        # Reconnect selection model
-        self._tree.selectionModel().selectionChanged.connect(self._update_status_count)
+    # ──────────────────────── Navigation Delegation ────────────────────────
 
     def _go_up(self):
-        """Navigate up one level."""
-        if self._mode == "archive":
-            if not self._archive_model.go_up():
-                # Back to filesystem, go to directory containing archive
-                parent_dir = os.path.dirname(self._current_archive_path)
-                self._navigate_to_dir(parent_dir)
-            else:
-                internal = self._archive_model.current_path
-                self._address_bar.set_path(
-                    self._current_archive_path,
-                    in_archive=True,
-                    archive_path=self._current_archive_path,
-                    archive_internal=internal,
-                )
-        else:
-            current = self._address_bar.get_path()
-            parent = os.path.dirname(current)
-            if parent and parent != current:
-                self._navigate_to_dir(parent)
+        self.presenter.go_up()
 
     def _on_address_changed(self, path: str):
-        """Handle address bar path changes."""
-        if path.startswith("__archive_root__"):
-            self._archive_model.navigate_to("")
-            self._address_bar.set_path(
-                self._current_archive_path,
-                in_archive=True,
-                archive_path=self._current_archive_path,
-                archive_internal="",
-            )
-        elif path.startswith("__archive_internal__"):
-            internal = path.replace("__archive_internal__", "")
-            self._archive_model.navigate_to(internal)
-            self._address_bar.set_path(
-                self._current_archive_path,
-                in_archive=True,
-                archive_path=self._current_archive_path,
-                archive_internal=internal,
-            )
-        elif os.path.isdir(path):
-            self._navigate_to_dir(path)
-        elif is_archive(path) and os.path.isfile(path):
-            self._navigate_into_archive(path)
+        self.presenter.on_address_changed(path)
 
     def _on_double_click(self, index: QModelIndex):
-        """Handle double-click on tree items."""
-        if self._mode == "filesystem":
-            if self._fs_model.isDir(index):
-                path = self._fs_model.filePath(index)
-                if is_archive(path):
-                    self._navigate_into_archive(path)
-                else:
-                    self._navigate_to_dir(path)
-            else:
-                file_path = self._fs_model.filePath(index)
-                if is_archive(file_path):
-                    self._navigate_into_archive(file_path)
+        if self.presenter.mode == "filesystem":
+            is_dir = self._fs_model.isDir(index)
+            file_path = self._fs_model.filePath(index)
+            self.presenter.on_double_click(is_dir, file_path, None)
         else:
-            # Archive mode
             source_idx = self._archive_sort_proxy.mapToSource(index)
-            entry = self._archive_model.entry_at(source_idx.row())
-            if entry and entry.is_dir:
-                self._archive_model.navigate_to(entry.filename)
-                self._address_bar.set_path(
-                    self._current_archive_path,
-                    in_archive=True,
-                    archive_path=self._current_archive_path,
-                    archive_internal=entry.filename,
-                )
+            self.presenter.on_double_click(False, "", source_idx.row())
 
-    # ──────────────────────── Actions ────────────────────────
+    # ──────────────────────── Actions Delegation ────────────────────────
 
     def _get_selected_fs_paths(self) -> list[str]:
         """Get selected filesystem paths."""
@@ -387,255 +357,33 @@ class MainWindow(QMainWindow):
         return entries
 
     def _on_add(self):
-        """Create a new archive from selected files."""
-        if self._mode != "filesystem":
-            QMessageBox.information(self, "提示", "请在文件系统视图中选择要压缩的文件")
-            return
-
-        paths = self._get_selected_fs_paths()
-        if not paths:
-            QMessageBox.warning(self, "警告", "请先选择要打包的文件或文件夹")
-            return
-
-        default_name = os.path.basename(paths[0]) if len(paths) == 1 else "archive"
-        current_dir = self._address_bar.get_path()
-
-        save_path, selected_filter = QFileDialog.getSaveFileName(
-            self,
-            "保存压缩文件",
-            os.path.join(current_dir, default_name),
-            "ZIP 文件 (*.zip);;TAR.GZ 文件 (*.tar.gz);;TAR.BZ2 文件 (*.tar.bz2);;TAR.XZ 文件 (*.tar.xz);;TAR 文件 (*.tar)",
-        )
-
-        if not save_path:
-            return
-
-        # Determine format from filter
-        fmt: ArchiveFormat = "zip"
-        if "tar.gz" in selected_filter:
-            fmt = "tar.gz"
-        elif "tar.bz2" in selected_filter:
-            fmt = "tar.bz2"
-        elif "tar.xz" in selected_filter:
-            fmt = "tar.xz"
-        elif "tar" in selected_filter and "gz" not in selected_filter:
-            fmt = "tar"
-
-        base_dir = current_dir
-
-        self._show_progress()
-        self._worker = PackWorker(paths, save_path, base_dir, fmt)
-        self._worker.progress.connect(self._progress_bar.setValue)
-        self._worker.finished.connect(self._on_success)
-        self._worker.error.connect(self._on_error)
-        self._worker.start()
+        self.presenter.on_add()
 
     def _on_extract(self):
-        """Extract selected archive or extract selected entries from archive."""
-        if self._mode == "archive":
-            # Extract selected entries (or all if none selected)
-            entries = self._get_selected_archive_entries()
-            dest = QFileDialog.getExistingDirectory(self, "选择解压目标文件夹")
-            if not dest:
-                return
-
-            self._show_progress()
-            self._worker = UnpackWorker(
-                self._current_archive_path, dest, entries if entries else None
-            )
-            self._worker.progress.connect(self._progress_bar.setValue)
-            self._worker.finished.connect(self._on_success)
-            self._worker.error.connect(self._on_error)
-            self._worker.start()
-        else:
-            # Filesystem mode — extract selected archive file
-            paths = self._get_selected_fs_paths()
-            if not paths:
-                QMessageBox.warning(self, "警告", "请先选择要解压的压缩文件")
-                return
-
-            archive = paths[0]
-            if not is_archive(archive):
-                QMessageBox.warning(self, "警告", "所选文件不是受支持的压缩格式")
-                return
-
-            dest = QFileDialog.getExistingDirectory(self, "选择解压目标文件夹")
-            if not dest:
-                return
-
-            self._show_progress()
-            self._worker = UnpackWorker(archive, dest)
-            self._worker.progress.connect(self._progress_bar.setValue)
-            self._worker.finished.connect(self._on_success)
-            self._worker.error.connect(self._on_error)
-            self._worker.start()
+        self.presenter.on_extract()
 
     def _on_test(self):
-        """Test archive integrity."""
-        if self._mode == "archive":
-            archive = self._current_archive_path
-        else:
-            paths = self._get_selected_fs_paths()
-            if not paths or not is_archive(paths[0]):
-                QMessageBox.warning(self, "警告", "请选择一个压缩文件进行测试")
-                return
-            archive = paths[0]
-
-        self._status_label.setText("正在测试压缩包...")
-        self._worker = TestWorker(archive)
-        self._worker.finished.connect(self._on_test_result)
-        self._worker.start()
-
-    def _on_test_result(self, ok: bool, msg: str):
-        if ok:
-            QMessageBox.information(self, "测试结果", f"✅ {msg}")
-            self._status_label.setText(f"测试通过: {msg}")
-        else:
-            QMessageBox.warning(self, "测试结果", f"❌ {msg}")
-            self._status_label.setText(f"测试失败: {msg}")
+        self.presenter.on_test()
 
     def _on_copy(self):
-        """Copy selected files to another location."""
-        if self._mode != "filesystem":
-            return
-        paths = self._get_selected_fs_paths()
-        if not paths:
-            return
-
-        dest = QFileDialog.getExistingDirectory(self, "选择复制目标文件夹")
-        if not dest:
-            return
-
-        self._show_progress()
-        self._worker = FileOperationWorker("copy", paths, dest)
-        self._worker.progress.connect(self._progress_bar.setValue)
-        self._worker.finished.connect(self._on_success)
-        self._worker.error.connect(self._on_error)
-        self._worker.start()
+        self.presenter.on_copy()
 
     def _on_move(self):
-        """Move selected files to another location."""
-        if self._mode != "filesystem":
-            return
-        paths = self._get_selected_fs_paths()
-        if not paths:
-            return
-
-        dest = QFileDialog.getExistingDirectory(self, "选择移动目标文件夹")
-        if not dest:
-            return
-
-        self._show_progress()
-        self._worker = FileOperationWorker("move", paths, dest)
-        self._worker.progress.connect(self._progress_bar.setValue)
-        self._worker.finished.connect(self._on_success)
-        self._worker.error.connect(self._on_error)
-        self._worker.start()
+        self.presenter.on_move()
 
     def _on_delete(self):
-        """Delete selected files."""
-        if self._mode != "filesystem":
-            return
-        paths = self._get_selected_fs_paths()
-        if not paths:
-            return
-
-        names = "\n".join(os.path.basename(p) for p in paths[:10])
-        if len(paths) > 10:
-            names += f"\n... 及其他 {len(paths) - 10} 个项目"
-
-        reply = QMessageBox.question(
-            self,
-            "确认删除",
-            f"确定要删除以下 {len(paths)} 个项目吗？\n\n{names}",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            for path in paths:
-                try:
-                    if os.path.isdir(path):
-                        shutil.rmtree(path)
-                    else:
-                        os.remove(path)
-                except Exception as e:
-                    QMessageBox.critical(self, "错误", f"无法删除 {path}:\n{e}")
-            self._status_label.setText(f"已删除 {len(paths)} 个项目")
+        self.presenter.on_delete()
 
     def _on_rename(self):
-        """Rename selected file/folder."""
-        if self._mode != "filesystem":
-            return
-        paths = self._get_selected_fs_paths()
-        if len(paths) != 1:
-            QMessageBox.warning(self, "警告", "请选择一个文件或文件夹进行重命名")
-            return
-
-        old_path = paths[0]
-        old_name = os.path.basename(old_path)
-
-        new_name, ok = QInputDialog.getText(
-            self, "重命名", "新名称:", text=old_name
-        )
-
-        if ok and new_name and new_name != old_name:
-            new_path = os.path.join(os.path.dirname(old_path), new_name)
-            try:
-                os.rename(old_path, new_path)
-                self._status_label.setText(f"已重命名: {old_name} → {new_name}")
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"重命名失败:\n{e}")
+        self.presenter.on_rename()
 
     def _on_info(self):
-        """Show archive info."""
-        if self._mode == "archive":
-            archive = self._current_archive_path
-        else:
-            paths = self._get_selected_fs_paths()
-            if not paths:
-                self._show_project_info()
-                return
-            archive = paths[0]
-
-        if is_archive(archive):
-            try:
-                info = list_contents(archive)
-                ratio = (
-                    f"{info.total_compressed / info.total_size * 100:.1f}%"
-                    if info.total_size > 0
-                    else "N/A"
-                )
-                msg = (
-                    f"文件: {os.path.basename(archive)}\n"
-                    f"格式: {info.format.upper()}\n"
-                    f"文件数: {info.total_files}\n"
-                    f"原始大小: {format_size(info.total_size)}\n"
-                    f"压缩大小: {format_size(info.total_compressed)}\n"
-                    f"压缩率: {ratio}"
-                )
-                QMessageBox.information(self, "压缩包信息", msg)
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"无法读取压缩包信息:\n{e}")
-        else:
-            # Show file/dir info
-            try:
-                stat = os.stat(archive)
-                msg = (
-                    f"名称: {os.path.basename(archive)}\n"
-                    f"大小: {format_size(stat.st_size)}\n"
-                    f"路径: {archive}\n"
-                    f"类型: {'文件夹' if os.path.isdir(archive) else '文件'}"
-                )
-                QMessageBox.information(self, "文件信息", msg)
-            except Exception as e:
-                QMessageBox.critical(self, "错误", f"无法读取文件信息:\n{e}")
+        self.presenter.on_info()
 
     def _on_new_archive(self):
-        """Create a new empty archive (user selects files then creates)."""
-        self._on_add()
+        self.presenter.on_add()
 
     def _on_open_archive(self):
-        """Open an archive file via dialog."""
         path, _ = QFileDialog.getOpenFileName(
             self,
             "打开压缩文件",
@@ -643,10 +391,9 @@ class MainWindow(QMainWindow):
             "压缩文件 (*.zip *.tar *.tar.gz *.tgz *.tar.bz2 *.tar.xz *.gz *.bz2 *.xz);;所有文件 (*.*)",
         )
         if path:
-            self._navigate_into_archive(path)
+            self.presenter.navigate_into_archive(path)
 
     def _select_all(self):
-        """Select all items in the tree view."""
         self._tree.selectAll()
 
     def _on_about(self):
@@ -697,13 +444,16 @@ class MainWindow(QMainWindow):
             f'</table>',
         )
 
+    def show_project_info(self):
+        self._show_project_info()
+
     # ──────────────────────── Context Menu ────────────────────────
 
     def _show_context_menu(self, pos):
         """Show right-click context menu."""
         menu = QMenu(self)
 
-        if self._mode == "filesystem":
+        if self.presenter.mode == "filesystem":
             paths = self._get_selected_fs_paths()
 
             open_act = menu.addAction(get_icon(*Icons.OPEN), "打开")
@@ -761,52 +511,14 @@ class MainWindow(QMainWindow):
         menu.exec(self._tree.viewport().mapToGlobal(pos))
 
     def _on_extract_all(self):
-        """Extract all files from current archive."""
-        if self._mode != "archive":
-            return
-
-        dest = QFileDialog.getExistingDirectory(self, "选择解压目标文件夹")
-        if not dest:
-            return
-
-        self._show_progress()
-        self._worker = UnpackWorker(self._current_archive_path, dest)
-        self._worker.progress.connect(self._progress_bar.setValue)
-        self._worker.finished.connect(self._on_success)
-        self._worker.error.connect(self._on_error)
-        self._worker.start()
+        self.presenter.on_extract_all()
 
     # ──────────────────────── Helpers ────────────────────────
-
-    def _show_progress(self):
-        self._progress_bar.setVisible(True)
-        self._progress_bar.setValue(0)
-
-    def _hide_progress(self):
-        self._progress_bar.setVisible(False)
-
-    def _on_success(self, message: str):
-        self._hide_progress()
-        self._status_label.setText(message)
-        QMessageBox.information(self, "成功", message)
-
-    def _on_error(self, message: str):
-        self._hide_progress()
-        self._status_label.setText(f"错误: {message}")
-        QMessageBox.critical(self, "失败", message)
-
-    def _update_action_states(self):
-        """Enable/disable toolbar actions based on current mode."""
-        is_fs = self._mode == "filesystem"
-        self._act_add.setEnabled(is_fs)
-        self._act_copy.setEnabled(is_fs)
-        self._act_move.setEnabled(is_fs)
-        self._act_delete.setEnabled(is_fs)
 
     def _update_status_count(self):
         """Update status bar with selection count."""
         selected = len(self._tree.selectionModel().selectedRows())
-        if self._mode == "filesystem":
+        if self.presenter.mode == "filesystem":
             model = self._fs_model
             root = self._tree.rootIndex()
             total = model.rowCount(root)
@@ -814,6 +526,11 @@ class MainWindow(QMainWindow):
         else:
             total = self._archive_model.rowCount()
             self._count_label.setText(f"{total} 个条目, 已选择 {selected} 个")
+
+    def closeEvent(self, event):
+        """Handle window close event to cleanly shutdown background threads."""
+        self.presenter.task_manager.shutdown()
+        event.accept()
 
 
 def run():

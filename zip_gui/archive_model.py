@@ -13,6 +13,18 @@ from zip_gui.archive_handler import ArchiveEntry, ArchiveInfo, format_size
 from zip_gui.resources import Colors
 
 
+class ArchiveNode:
+    """Represents a pre-built directory tree node in the archive."""
+
+    def __init__(self, filename: str, is_dir: bool, entry: ArchiveEntry | None = None):
+        self.filename = filename
+        self.is_dir = is_dir
+        self.entry = entry
+        self.children: dict[str, ArchiveNode] = {}
+        self.file_size = 0
+        self.compress_size = 0
+
+
 class ArchiveModel(QAbstractTableModel):
     """Table model that presents archive entries for a specific directory level."""
 
@@ -24,6 +36,7 @@ class ArchiveModel(QAbstractTableModel):
         self._all_entries: list[ArchiveEntry] = []
         self._current_entries: list[ArchiveEntry] = []
         self._current_path: str = ""  # Current directory inside archive
+        self._root_node = ArchiveNode(filename="", is_dir=True)
 
         # Icons
         self._folder_icon = qta.icon("fa5s.folder", color=Colors.YELLOW)
@@ -43,6 +56,49 @@ class ArchiveModel(QAbstractTableModel):
         self.beginResetModel()
         self._archive_info = archive_info
         self._all_entries = archive_info.entries
+        
+        # Build the prefix tree
+        self._root_node = ArchiveNode(filename="", is_dir=True)
+        for entry in self._all_entries:
+            clean_path = entry.filename.rstrip("/")
+            if not clean_path:
+                continue
+            parts = clean_path.split("/")
+            
+            # Walk and build parent directory nodes
+            current = self._root_node
+            prefix = ""
+            for part in parts[:-1]:
+                prefix += part + "/"
+                if part not in current.children:
+                    current.children[part] = ArchiveNode(filename=prefix, is_dir=True)
+                current = current.children[part]
+                if not entry.is_dir:
+                    current.file_size += entry.file_size
+                    current.compress_size += entry.compress_size
+            
+            # Handle leaf node
+            last_part = parts[-1]
+            if entry.is_dir:
+                dir_path = clean_path + "/"
+                if last_part not in current.children:
+                    current.children[last_part] = ArchiveNode(filename=dir_path, is_dir=True, entry=entry)
+                else:
+                    node = current.children[last_part]
+                    node.entry = entry
+            else:
+                if last_part not in current.children:
+                    node = ArchiveNode(filename=entry.filename, is_dir=False, entry=entry)
+                    node.file_size = entry.file_size
+                    node.compress_size = entry.compress_size
+                    current.children[last_part] = node
+                else:
+                    node = current.children[last_part]
+                    node.is_dir = False
+                    node.entry = entry
+                    node.file_size = entry.file_size
+                    node.compress_size = entry.compress_size
+
         self._current_path = ""
         self._refresh_current_entries()
         self.endResetModel()
@@ -80,46 +136,45 @@ class ArchiveModel(QAbstractTableModel):
         self._all_entries = []
         self._current_entries = []
         self._current_path = ""
+        self._root_node = ArchiveNode(filename="", is_dir=True)
         self.endResetModel()
 
     def _refresh_current_entries(self) -> None:
-        """Filter entries to show only direct children of current_path."""
+        """Filter entries to show only direct children of current_path using the pre-built tree."""
+        if not self._archive_info:
+            self._current_entries = []
+            return
+
+        # Find the node corresponding to current_path
+        node = self._root_node
+        if self._current_path:
+            parts = self._current_path.rstrip("/").split("/")
+            for part in parts:
+                if part in node.children:
+                    node = node.children[part]
+                else:
+                    self._current_entries = []
+                    return
+
+        # Gather direct children of this node
         self._current_entries = []
-        seen_dirs: set[str] = set()
-
-        prefix = self._current_path
-
-        for entry in self._all_entries:
-            if not entry.filename.startswith(prefix):
-                continue
-
-            relative = entry.filename[len(prefix):]
-            if not relative or relative == "/":
-                continue
-
-            # Check if it's a direct child
-            parts = relative.rstrip("/").split("/")
-            if len(parts) == 1:
-                # Direct child
-                self._current_entries.append(entry)
-            elif len(parts) > 1:
-                # It's inside a subdirectory — add a virtual directory entry if not seen
-                dir_name = parts[0] + "/"
-                full_dir = prefix + dir_name
-                if full_dir not in seen_dirs:
-                    seen_dirs.add(full_dir)
-                    # Calculate aggregated size for this directory
-                    dir_size = sum(
-                        e.file_size
-                        for e in self._all_entries
-                        if e.filename.startswith(full_dir) and not e.is_dir
-                    )
-                    dir_entry = ArchiveEntry(
-                        filename=full_dir,
+        for child in node.children.values():
+            if child.is_dir:
+                if child.entry:
+                    entry = child.entry
+                    entry.file_size = child.file_size
+                    entry.compress_size = child.compress_size
+                else:
+                    entry = ArchiveEntry(
+                        filename=child.filename,
                         is_dir=True,
-                        file_size=dir_size,
+                        file_size=child.file_size,
+                        compress_size=child.compress_size,
                     )
-                    self._current_entries.append(dir_entry)
+                self._current_entries.append(entry)
+            else:
+                if child.entry:
+                    self._current_entries.append(child.entry)
 
         # Sort: directories first, then by name
         self._current_entries.sort(

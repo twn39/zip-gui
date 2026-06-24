@@ -45,6 +45,8 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "pyinstaller>=6.15.0",
+    "pytest>=8.0.0",
+    "pytest-qt>=4.4.0",
 ]
 
 [tool.hatch.metadata]
@@ -52,5 +54,10 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["zip_gui"]
+
+
+[tool.pytest.ini_options]
+qt_api = "pyside6"
+testpaths = ["tests"]
 
 
